@@ -1,4 +1,4 @@
-# WeatherSight MCP Client
+# Weathersight MCP Client
 
 Connect Claude Desktop to WeatherSight's professional weather APIs for advanced weather analysis, anomaly detection, and climatological insights.
 
@@ -136,7 +136,7 @@ The client is configured with generous timeouts:
 - **Documentation**: [weathersight.io/docs](https://weathersight.io/docs)
 - **API Reference**: [weathersight.io/docs](https://weathersight.io/docs)
 - **Issues**: [GitHub Issues](https://github.com/weathersight/weathersight-mcp/issues)
-- **Email**: support@weathersight.io
+- **Email**: contact@weathersight.io
 
 ## License
 
@@ -147,5 +147,3 @@ MIT License - see LICENSE file for details.
 Contributions welcome! Please read our contributing guidelines and submit pull requests to our GitHub repository.
 
 ---
-
-**Made with ❤️ by the WeatherSight team**
