@@ -1,6 +1,5 @@
-# tests/test_weathersight_mcp.py
+# tests/test_basic.py
 import pytest
-import json
 import os
 from unittest.mock import patch, MagicMock
 from weathersight_mcp import WeatherSightMCP
@@ -13,7 +12,7 @@ class TestWeatherSightMCP:
     def test_initialization(self):
         assert self.mcp.session is not None
         assert hasattr(self.mcp, "make_request")
-        assert hasattr(self.mcp, "handle_mcp_request")
+        assert hasattr(self.mcp, "run_mcp_server")  # Updated method name
 
     @patch("weathersight_mcp.requests.Session.post")
     def test_make_request_success(self, mock_post):
@@ -21,12 +20,16 @@ class TestWeatherSightMCP:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.status_code = 200
-        mock_response.json.return_value = {"result": "success"}
+        mock_response.json.return_value = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "success",
+        }
         mock_post.return_value = mock_response
 
-        result = self.mcp.make_request("/test", {"test": "data"})
+        result = self.mcp.make_request("/test", {"id": 1})
 
-        assert result == {"result": "success"}
+        assert result == {"jsonrpc": "2.0", "id": 1, "result": "success"}
         mock_post.assert_called_once()
 
     @patch("weathersight_mcp.requests.Session.post")
@@ -36,40 +39,27 @@ class TestWeatherSightMCP:
 
         mock_post.side_effect = Timeout()
 
-        result = self.mcp.make_request("/test", {"test": "data"})
+        result = self.mcp.make_request("/test", {"id": 1})
 
         assert "error" in result
         assert "timed out" in result["error"]["message"]
+        assert result["jsonrpc"] == "2.0"
+        assert result["id"] == 1
 
     @patch("weathersight_mcp.requests.Session.post")
-    def test_make_request_auth_error(self, mock_post):
-        # Mock 401 response
+    def test_make_request_http_error(self, mock_post):
+        # Mock HTTP error response
         mock_response = MagicMock()
         mock_response.ok = False
         mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
         mock_post.return_value = mock_response
 
-        result = self.mcp.make_request("/test", {"test": "data"})
+        result = self.mcp.make_request("/test", {"id": 1})
 
         assert "error" in result
-        assert "Authentication failed" in result["error"]["message"]
-
-    def test_handle_mcp_request_initialize(self):
-        with patch.object(self.mcp, "make_request") as mock_make_request:
-            mock_make_request.return_value = {"serverInfo": {"name": "test"}}
-
-            result = self.mcp.handle_mcp_request({"method": "initialize"})
-
-            mock_make_request.assert_called_once_with(
-                "/mcp/initialize", {"method": "initialize"}
-            )
-            assert result == {"serverInfo": {"name": "test"}}
-
-    def test_handle_mcp_request_unknown_method(self):
-        result = self.mcp.handle_mcp_request({"method": "unknown"})
-
-        assert "error" in result
-        assert result["error"]["code"] == -32601
+        assert "HTTP 401" in result["error"]["message"]
+        assert result["jsonrpc"] == "2.0"
 
     @patch.dict(os.environ, {"WEATHERSIGHT_API_TOKEN": "test_token"})
     @patch("weathersight_mcp.requests.Session.post")
@@ -77,15 +67,22 @@ class TestWeatherSightMCP:
         # Mock successful response
         mock_response = MagicMock()
         mock_response.ok = True
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"result": "success"}
+        mock_response.json.return_value = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "success",
+        }
         mock_post.return_value = mock_response
 
-        # Test request without token
-        data = {"arguments": {"location": "New York"}}
-        self.mcp.make_request("/test", data)
+        # Test tools/call request without token
+        data = {
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "location", "arguments": {"name": "New York"}},
+        }
+        self.mcp.make_request("/mcp/tools/call", data)
 
         # Verify token was added
         call_args = mock_post.call_args
         sent_data = call_args[1]["json"]
-        assert sent_data["arguments"]["token"] == "test_token"
+        assert sent_data["params"]["arguments"]["token"] == "test_token"

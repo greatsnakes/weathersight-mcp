@@ -8,7 +8,6 @@ import sys
 import requests
 import os
 import argparse
-import time
 from typing import Dict, Any
 
 # Configuration
@@ -40,13 +39,14 @@ class WeatherSightMCP:
         self.session.mount("https://", adapter)
 
     def make_request(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Make request to WeatherSight MCP endpoint with proper error handling"""
+        """Make request to WeatherSight MCP endpoint"""
         try:
-            # Add API token if available and not already in the request
-            if "arguments" in data:
+            # Add API token to tool calls if available
+            if endpoint == "/mcp/tools/call" and "params" in data:
                 token = os.getenv("WEATHERSIGHT_API_TOKEN")
-                if token and "token" not in data["arguments"]:
-                    data["arguments"]["token"] = token
+                if token and "arguments" in data["params"]:
+                    if "token" not in data["params"]["arguments"]:
+                        data["params"]["arguments"]["token"] = token
 
             response = self.session.post(
                 f"{BASE_URL}{endpoint}",
@@ -58,65 +58,42 @@ class WeatherSightMCP:
             )
 
             # Handle HTTP errors
-            if response.status_code == 401:
+            if not response.ok:
                 return {
+                    "jsonrpc": "2.0",
+                    "id": data.get("id"),
                     "error": {
                         "code": -32603,
-                        "message": "Authentication failed. Check your WEATHERSIGHT_API_TOKEN.",
-                    }
-                }
-            elif response.status_code == 429:
-                return {
-                    "error": {
-                        "code": -32603,
-                        "message": "Rate limit exceeded. Please try again later.",
-                    }
-                }
-            elif not response.ok:
-                return {
-                    "error": {
-                        "code": -32603,
-                        "message": f"API error: {response.status_code} - {response.text}",
-                    }
+                        "message": f"HTTP {response.status_code}: {response.text}",
+                    },
                 }
 
             return response.json()
 
         except requests.exceptions.Timeout:
             return {
+                "jsonrpc": "2.0",
+                "id": data.get("id"),
                 "error": {
                     "code": -32603,
-                    "message": f"Request timed out after {TIMEOUT} seconds. Weather data queries can take time.",
-                }
-            }
-        except requests.exceptions.ConnectionError:
-            return {
-                "error": {
-                    "code": -32603,
-                    "message": "Connection failed. Please check your internet connection.",
-                }
+                    "message": f"Request timed out after {TIMEOUT} seconds",
+                },
             }
         except requests.exceptions.RequestException as e:
-            return {"error": {"code": -32603, "message": f"Request failed: {str(e)}"}}
+            return {
+                "jsonrpc": "2.0",
+                "id": data.get("id"),
+                "error": {"code": -32603, "message": f"Request failed: {str(e)}"},
+            }
         except Exception as e:
-            return {"error": {"code": -32603, "message": f"Unexpected error: {str(e)}"}}
-
-    def handle_mcp_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Route MCP request to appropriate endpoint"""
-        method = request.get("method", "")
-
-        # Map MCP methods to API endpoints
-        if method == "initialize":
-            return self.make_request("/mcp/initialize", request)
-        elif method == "tools/list":
-            return self.make_request("/mcp/tools/list", request)
-        elif method == "tools/call":
-            return self.make_request("/mcp/tools/call", request)
-        else:
-            return {"error": {"code": -32601, "message": f"Unknown method: {method}"}}
+            return {
+                "jsonrpc": "2.0",
+                "id": data.get("id"),
+                "error": {"code": -32603, "message": f"Unexpected error: {str(e)}"},
+            }
 
     def run_mcp_server(self):
-        """Main MCP server loop - reads from stdin, writes to stdout"""
+        """Main MCP server loop - pure pass-through to production server"""
         try:
             for line in sys.stdin:
                 try:
@@ -125,24 +102,51 @@ class WeatherSightMCP:
                         continue
 
                     request = json.loads(line)
-                    result = self.handle_mcp_request(request)
+                    method = request.get("method", "")
 
-                    print(json.dumps(result))
+                    # Map method to endpoint
+                    if method == "initialize":
+                        endpoint = "/mcp/initialize"
+                    elif method == "tools/list":
+                        endpoint = "/mcp/tools/list"
+                    elif method == "tools/call":
+                        endpoint = "/mcp/tools/call"
+                    else:
+                        # Unknown method - return error
+                        response = {
+                            "jsonrpc": "2.0",
+                            "id": request.get("id"),
+                            "error": {
+                                "code": -32601,
+                                "message": f"Unknown method: {method}",
+                            },
+                        }
+                        print(json.dumps(response))
+                        sys.stdout.flush()
+                        continue
+
+                    # Forward request to production server and return response
+                    response = self.make_request(endpoint, request)
+                    print(json.dumps(response))
                     sys.stdout.flush()
 
                 except json.JSONDecodeError as e:
                     error_response = {
-                        "error": {"code": -32700, "message": f"Parse error: {str(e)}"}
+                        "jsonrpc": "2.0",
+                        "id": None,
+                        "error": {"code": -32700, "message": f"Parse error: {str(e)}"},
                     }
                     print(json.dumps(error_response))
                     sys.stdout.flush()
 
                 except Exception as e:
                     error_response = {
+                        "jsonrpc": "2.0",
+                        "id": request.get("id") if "request" in locals() else None,
                         "error": {
                             "code": -32603,
                             "message": f"Internal error: {str(e)}",
-                        }
+                        },
                     }
                     print(json.dumps(error_response))
                     sys.stdout.flush()
@@ -152,6 +156,32 @@ class WeatherSightMCP:
         except Exception as e:
             print(f"Fatal error: {e}", file=sys.stderr)
             sys.exit(1)
+
+
+def test_connection():
+    """Test connection to WeatherSight API"""
+    print("Testing connection to WeatherSight API...")
+
+    token = os.getenv("WEATHERSIGHT_API_TOKEN")
+    if not token:
+        print("❌ No API token found. Set WEATHERSIGHT_API_TOKEN environment variable.")
+        return False
+
+    mcp = WeatherSightMCP()
+
+    # Test initialize endpoint
+    test_request = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+    result = mcp.make_request("/mcp/initialize", test_request)
+
+    if "error" in result:
+        print(f"❌ Connection failed: {result['error']['message']}")
+        return False
+    else:
+        print("✅ Connection successful!")
+        if "result" in result:
+            server_info = result["result"].get("serverInfo", {})
+            print(f"✅ Server: {server_info.get('name', 'WeatherSight MCP')}")
+        return True
 
 
 def configure_claude_desktop():
@@ -193,30 +223,6 @@ def configure_claude_desktop():
     print("\n" + "=" * 60)
 
 
-def test_connection():
-    """Test connection to WeatherSight API"""
-    print("Testing connection to WeatherSight API...")
-
-    token = os.getenv("WEATHERSIGHT_API_TOKEN")
-    if not token:
-        print("❌ No API token found. Set WEATHERSIGHT_API_TOKEN environment variable.")
-        return False
-
-    mcp = WeatherSightMCP()
-
-    # Test initialize endpoint
-    test_request = {"method": "initialize"}
-    result = mcp.handle_mcp_request(test_request)
-
-    if "error" in result:
-        print(f"❌ Connection failed: {result['error']['message']}")
-        return False
-    else:
-        print("✅ Connection successful!")
-        print(f"✅ Server: {result.get('serverInfo', {}).get('name', 'Unknown')}")
-        return True
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="WeatherSight MCP Client - Connect Claude to WeatherSight's weather APIs",
@@ -244,7 +250,7 @@ def main():
         test_connection()
         return
 
-    # Default: Run MCP server
+    # Default: Run MCP server (pure pass-through mode)
     mcp = WeatherSightMCP()
     mcp.run_mcp_server()
 
