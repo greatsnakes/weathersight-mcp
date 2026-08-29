@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.weathersight/weathersight",
+  "description": "Historical climate and weather observations: 100+ years of station data, typical-weather climatology, anomalies, extremes, degree days, and long-term trends for locations worldwide.",
+  "version": "1.0.0",
+  "websiteUrl": "https://weathersight.io",
+  "repository": {
+    "url": "https://github.com/greatsnakes/weathersight-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://weathersight.io/api/mcp"
+    }
+  ]
+}

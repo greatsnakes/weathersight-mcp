@@ -1,149 +1,58 @@
-# Weathersight MCP Client
+# Weathersight MCP Connector
 
-Connect Claude Desktop to WeatherSight's professional weather APIs for advanced weather analysis, anomaly detection, and climatological insights.
+Connect Claude — or any MCP client — to [Weathersight](https://weathersight.io): 100+ years
+of station observations, typical-weather climatology, anomalies, extremes, degree days, and
+long-term climate trends for locations worldwide.
 
-## Features
+This is a **remote MCP server**. There is nothing to install.
 
-🌡️ **Weather Anomalies** - Detect unusual weather patterns  
-📊 **Climate Analysis** - Compare current conditions to historical baselines  
-🔍 **Location Intelligence** - Detailed weather data for any location  
-📈 **Weather Streaks** - Identify consecutive weather patterns  
-🌍 **Global Coverage** - Worldwide weather data access  
-⚡ **Fast & Reliable** - Optimized for Claude Desktop with 5-minute timeouts  
-
-## Quick Start
-
-### 1. Installation
-
-```bash
-pip install weathersight-mcp
+```
+https://weathersight.io/api/mcp
 ```
 
-### 2. Get API Token
+## Connect
 
-Sign up at [weathersight.io](https://weathersight.io/signup) to get your free API token.
+**Claude (Desktop or web)**
 
-### 3. Configure Claude Desktop
+1. Settings → Connectors → **Add custom connector**
+2. URL: `https://weathersight.io/api/mcp`
+3. **Connect**, then sign in when prompted
 
-Run the configuration helper:
+Signing in creates your Weathersight API token automatically if you don't already have one,
+and starts a free trial. Existing token holders keep the token they already have.
 
-```bash
-weathersight-mcp --configure
-```
+**Other MCP clients**
 
-This will show you exactly what to add to your Claude Desktop config file.
+Point the client at the same URL. The server speaks Streamable HTTP (spec 2025-03-26) and
+authenticates with OAuth 2.0 authorization-code + PKCE, including dynamic client
+registration — no manual credential setup.
 
-### 4. Test Connection
+## What you can ask
 
-```bash
-export WEATHERSIGHT_API_TOKEN="your_token_here"
-weathersight-mcp --test
-```
+- *"What's the typical weather in Reykjavik in late September?"*
+- *"Has Bengaluru's monsoon onset shifted over the last 40 years?"*
+- *"Which US cities broke heat records last week?"*
+- *"Compare this July in Madrid to its 1991–2020 baseline."*
 
-### 5. Restart Claude Desktop
+## Managing your connection
 
-After updating the config, restart Claude Desktop to load the WeatherSight tools.
+- **Your token and plan:** https://weathersight.io/subscription
+- **API reference:** https://weathersight.io/docs
 
-## Usage Examples
+If the connector stops returning data, your client will usually prompt you to sign in again.
+If it reports that your plan has lapsed, visit the subscription page above — the connector
+and token resume working once a plan is active.
 
-Once configured, ask Claude questions like:
+## About this repository
 
-- **"What weather anomalies occurred in Chicago during January 2024?"**
-- **"Compare this winter's temperature in New York to the historical average"**
-- **"Show me the longest heat streak in Phoenix last summer"**
-- **"Get typical weather patterns for London in March"**
-- **"What are the current degree days for heating in Boston?"**
+This repo is the public home of Weathersight's [MCP Registry](https://registry.modelcontextprotocol.io)
+entry. [`server.json`](server.json) is the metadata record that tells the registry — and the
+directories that mirror it — what this server is called, where it lives, and how to reach it.
 
-## Configuration
-
-### Manual Configuration
-
-Add this to your Claude Desktop config file:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`  
-**Linux**: `~/.config/claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "weathersight": {
-      "command": "weathersight-mcp",
-      "args": [],
-      "env": {
-        "WEATHERSIGHT_API_TOKEN": "your_actual_token_here"
-      }
-    }
-  }
-}
-```
-
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `WEATHERSIGHT_API_TOKEN` | Your API token from weathersight.io | Yes |
-
-## Available Tools
-
-The MCP client provides access to these WeatherSight APIs:
-
-- **location** - Get location information and coordinates
-- **typicalweather** - Climatological weather patterns
-- **anomalies** - Weather anomaly detection
-- **streaks** - Consecutive weather pattern analysis
-- **compare** - Compare weather periods
-- **timeseries** - Historical weather time series
-- **degreedays** - Heating/cooling degree day calculations
-- **metrics** - Available weather parameters
-- **countries** - Country weather information
-
-## Troubleshooting
-
-### Connection Issues
-
-```bash
-# Test your connection
-weathersight-mcp --test
-
-# Check if token is set
-echo $WEATHERSIGHT_API_TOKEN
-```
-
-### Timeout Issues
-
-The client is configured with generous timeouts:
-- **Connection timeout**: 30 seconds
-- **Request timeout**: 5 minutes (300 seconds)
-- **Auto-retry**: 3 attempts with backoff
-
-### Common Issues
-
-**"No API token found"**
-- Set the `WEATHERSIGHT_API_TOKEN` environment variable
-- Or add it to your Claude Desktop config
-
-**"Authentication failed"**
-- Check your token is correct
-- Verify your account is active at weathersight.io
-
-**"Rate limit exceeded"**
-- Wait a moment and try again
-- Consider upgrading your API plan
-
-## Support
-
-- **Documentation**: [weathersight.io/docs](https://weathersight.io/docs)
-- **API Reference**: [weathersight.io/docs](https://weathersight.io/docs)
-- **Issues**: [GitHub Issues](https://github.com/weathersight/weathersight-mcp/issues)
-- **Email**: contact@weathersight.io
+The connector itself is served from the Weathersight application; there is no server code
+here. A local stdio proxy previously lived in this repo and has been removed: remote MCP with
+OAuth supersedes it, requiring no install, no Python, and no pasted API token.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-Contributions welcome! Please read our contributing guidelines and submit pull requests to our GitHub repository.
-
----
+MIT — see [LICENSE](LICENSE).
