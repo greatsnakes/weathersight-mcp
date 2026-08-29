@@ -1,2 +1,7 @@
 # .gitignore
 .DS_Store
+
+# Key material — never commit
+*.pem
+*.key
+.mcppvt
