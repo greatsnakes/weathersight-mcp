@@ -1,8 +1,2 @@
 # .gitignore
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-wsight_mcp*/
-.coverage
-weathersight_mcp.egg-info/
+.DS_Store
