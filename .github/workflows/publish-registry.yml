@@ -1,0 +1,69 @@
+# Publishes server.json to the official MCP Registry on a version tag.
+#
+# One-time setup: add the Ed25519 private key (64 hex chars, the same value used
+# with `mcp-publisher login dns` locally) as the repository secret
+# MCP_REGISTRY_PRIVATE_KEY. The matching public key is already published as the
+# TXT record on weathersight.io.
+#
+# To release: bump "version" in server.json, commit, then
+#     git tag v1.0.1 && git push origin v1.0.1
+#
+# The registry treats versions as immutable — re-publishing an existing version
+# fails with "cannot publish duplicate version", so every change needs a bump.
+name: Publish to MCP Registry
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches server.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          JSON=$(python3 -c "import json;print(json.load(open('server.json'))['version'])")
+          echo "tag=$TAG server.json=$JSON"
+          if [ "$TAG" != "$JSON" ]; then
+            echo "::error::Tag v$TAG does not match server.json version $JSON"
+            exit 1
+          fi
+
+      - name: Install mcp-publisher
+        run: |
+          URL=$(curl -sL https://api.github.com/repos/modelcontextprotocol/registry/releases/latest \
+            | python3 -c "import json,sys;print(next(a['browser_download_url'] for a in json.load(sys.stdin)['assets'] if a['name']=='mcp-publisher_linux_amd64.tar.gz'))")
+          echo "Downloading $URL"
+          curl -sL "$URL" | tar xz mcp-publisher
+          sudo mv mcp-publisher /usr/local/bin/
+          mcp-publisher --version || true
+
+      - name: Authenticate
+        env:
+          MCP_REGISTRY_PRIVATE_KEY: ${{ secrets.MCP_REGISTRY_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MCP_REGISTRY_PRIVATE_KEY" ]; then
+            echo "::error::MCP_REGISTRY_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          mcp-publisher login dns \
+            --domain=weathersight.io \
+            --private-key="$MCP_REGISTRY_PRIVATE_KEY"
+
+      - name: Validate
+        run: mcp-publisher publish --dry-run
+
+      - name: Publish
+        run: mcp-publisher publish
+
+      - name: Confirm
+        run: |
+          sleep 5
+          curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=weathersight" \
+            | python3 -m json.tool
