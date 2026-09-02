@@ -49,9 +49,7 @@ This repo is the public home of Weathersight's [MCP Registry](https://registry.m
 entry. [`server.json`](server.json) is the metadata record that tells the registry — and the
 directories that mirror it — what this server is called, where it lives, and how to reach it.
 
-The connector itself is served from the Weathersight application; there is no server code
-here. A local stdio proxy previously lived in this repo and has been removed: remote MCP with
-OAuth supersedes it, requiring no install, no Python, and no pasted API token.
+The connector itself is served from the Weathersight application.
 
 ## License
 
